@@ -2,7 +2,7 @@
  * Anima - Shadow Partner Rewrite
  * By Liquidize - www.mintkit.lol
  * Anima_ShadowPartnerRewrite.js
- * Version: 1.06
+ * Version: 1.07
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -626,6 +626,9 @@
  * ============================================================================
  * Change Log
  * ============================================================================
+ *
+ * Version 1.07:
+ *             - Fixed an issue where the shadow would render off screen.
  *
  * Version 1.06:
  *             - Fixed an issue where if a battler died, the shadow would remain.
@@ -1840,7 +1843,7 @@ Anima.ShadowPartner = Anima.ShadowPartner || {};
         if (changed) {
             this._actor = battler;
             if (battler) {
-                this.setActorHome(battler.index());
+              //  this.setActorHome(battler.index());
             }
             this.startEntryMotion();
             this._stateSprite.setup(battler);
@@ -2342,4 +2345,4 @@ Anima.ShadowPartner = Anima.ShadowPartner || {};
 })(Anima.ShadowPartner);
 
 ShadowPartner = Anima.ShadowPartner;
-Imported["Anima_ShadowPartnerRewrite"] = 1.06;
+Imported["Anima_ShadowPartnerRewrite"] = 1.07;
