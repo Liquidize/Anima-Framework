@@ -2,7 +2,7 @@
  * Anima - Item Cooldowns
  * By Liquidize - http://anima.mintkit.lol
  * Anima_ItemCooldowns.js
- * Version: 1.0
+ * Version: 1.01
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *
@@ -347,6 +347,9 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.01:
+ *            - Fixed an error caused by After Battle Cooldowns.
+ *            - Added compatibility with Bobstah's Item Socket Plugin.
  *
  * Version 1.0:
  *            - Finished Script!
@@ -704,7 +707,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
 
     Game_BattlerBase.prototype.endBattleItemCooldowns = function () {
         this.resetItemCooldownTickRates();
-        for (var itemId in this._cooldownTurns) {
+        for (var itemId in this._itemCooldownTurns) {
             this._itemCooldownTurns[itemId] += $dataItems[itemId].afterBattleCooldown;
         }
     };
@@ -1197,10 +1200,14 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     Window_ItemList.prototype.drawItem = function (index) {
         var item = this._data[index];
         if (item) {
-            if (this.actor().itemWarmup(item.id) > 0) {
-                this.drawItemWarmup(item, index);
-            } else if (this.actor().itemCooldown(item.id) > 0) {
-                this.drawItemCooldown(item, index);
+            if (DataManager.isItem(item)) {
+                if (this.actor().itemWarmup(item.id) > 0) {
+                    this.drawItemWarmup(item, index);
+                } else if (this.actor().itemCooldown(item.id) > 0) {
+                    this.drawItemCooldown(item, index);
+                } else {
+                    return itemCooldownsWindowItemList_drawItem.call(this, index);
+                }
             } else {
                 return itemCooldownsWindowItemList_drawItem.call(this, index);
             }
@@ -1381,4 +1388,4 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
 })(Anima.ItemCooldowns);
 
 ItemCooldowns = Anima.ItemCooldowns;
-Imported["Anima_ItemCooldowns"] = 1.0;
+Imported["Anima_ItemCooldowns"] = 1.01;
