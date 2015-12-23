@@ -1,8 +1,8 @@
 /*=============================================================================
  * Anima - Overtime Effects
- * By Liquidize - www.mintkit.lol
+ * By Liquidize - http://anima.mintkit.lol
  * Anima_OvertimeEffects.js
- * Version: 1.02
+ * Version: 1.03
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -320,6 +320,9 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.03:
+ *             - Fixed an issue where an effect would apply to dead enemies.
+ *
  * Version 1.02:
  *             - Fixed an issue where if a battler died via an overtime effect
  *               they would remain on the battlefield.
@@ -476,6 +479,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
             var value = BattleManager.tickRate() / Yanfly.Param.BECTurnTime;
             this.ottick -= value;
             if (this.ottick <= 0) {
+                if (this.isDead()) return;
                 this.updateOvertimeEffects();
                 this.ottick = 1;
             }
@@ -487,6 +491,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
     Game_Battler.prototype.onTurnEnd = function () {
         overtimeEffectsGameBattler_onTurnEnd.call(this);
         if (!$.Param.isTickBased) {
+            if (this.isDead()) return;
             this.updateOvertimeEffects();
         }
     };
@@ -722,4 +727,4 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
 })(Anima.OvertimeEffects);
 
 OvertimeEffects = Anima.OvertimeEffects;
-Imported["Anima_OvertimeEffects"] = 1.02;
+Imported["Anima_OvertimeEffects"] = 1.03;
