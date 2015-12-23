@@ -2,7 +2,7 @@
  * Anima - Item Cooldowns
  * By Liquidize - http://anima.mintkit.lol
  * Anima_ItemCooldowns.js
- * Version: 1.01
+ * Version: 1.02
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *
@@ -177,6 +177,16 @@
  * has 4 and the Item Type Cooldown has 5, then the cooldown would be changed
  * to 5 turns.
  *
+ * Party Cooldowns
+ * These cooldowns and warmups function just like normal cooldowns and warmups,
+ * except that they're for your entire party. Each party member contributes to
+ * the effects of this cooldown, so if one party member has a state that can
+ * reduce this particular item types,or items cooldown rate,or duration then
+ * the entire parties cooldown rate or duration for this particular cooldown/item
+ * is also effect. All for one, one for all as they say. Party cooldowns super
+ * cede individual actor cooldowns, if and only if the party cooldown is greater
+ * than that of the actors own cooldown.
+ *
  * ============================================================================
  * Notetags
  * ============================================================================
@@ -197,6 +207,8 @@
  * Sets the warmup of the item to X turns. This warmup only affects this item. This
  * value will take priority over Item Type Warmup and Global Warmup.
  *
+ * <Party Cooldown: x>
+ * Sets this item to be an item cooldown, if x is set to true.
  *
  * <After Battle Cooldown: +x>
  * <After Battle Cooldown: -x>
@@ -218,6 +230,15 @@
  * When using this item, all items within the parties item library, will be
  * placed on a cooldown of x turns, for the actor who used this. This has
  * less of a priority then IType and Individual cooldowns.
+ *
+ * <IType x Party Cooldown: y>
+ * Same as IType Cooldown, but for the entire party.
+ *
+ * <Party Cooldown: x>
+ * Same as Cooldown, but for the entire party. See party cooldowns.
+ *
+ * <Global Party Cooldown: x>
+ * Same as Global Cooldown, but for the entire party. See party cooldowns.
  *
  * <Bypass Cooldown>
  * This causes the item to bypass cooldowns, no matter what. This should be
@@ -342,10 +363,19 @@
  *   determine the warmup's value. The 'warmup' variable determines the amount
  *   of turns for the warmup.
  *
+ * <Party Cooldown Eval>
+ * </Party Cooldown Eval>
+ * These two evaluation tags are the same as <Cooldown Eval></Cooldown Eval>
+ * except for the entire party, see party cooldowns.
  *
  * ============================================================================
  * Change Log
  * ============================================================================
+ *
+ * Version 1.02:
+ *            - Fixed a bug that caused the plugin to not function
+ *            without YEP Battle Engine
+ *            - Added Party Cooldowns
  *
  * Version 1.01:
  *            - Fixed an error caused by After Battle Cooldowns.
@@ -428,12 +458,21 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
             obj.bypassCooldown = $.Param.cdBypass.contains(obj.id);
             obj.cooldownEval = '';
             obj.warmupEval = '';
+            obj.partyCooldown = false;
+            obj.partyCooldownTurns = {};
+            obj.partyITypeCooldowns = {};
+            obj.partyGlobalCooldown = 0;
+            obj.partyCooldownEval = '';
             var evalMode = 'none';
 
             for (var i = 0; i < notedata.length; i++) {
                 var line = notedata[i];
                 if (line.match(/<(?:COOLDOWN):[ ](\d+)>/i)) {
                     obj.cooldown[obj.id] = parseInt(RegExp.$1);
+                } else if (line.match(/<(?:PARTY COOLDOWN):[ ](\d+)>/i)) {
+                    var turns = parseInt(RegExp.$1);
+                    obj.partyCooldownTurns[obj.id] = turns;
+                    if (turns > 0) obj.partyCooldown = true;
                 } else if (line.match(/<(?:ITYPE):[ ](\d+)>/i)) {
                     obj.itemTypeId = parseInt(RegExp.$1);
                 } else if (line.match(/<(?:AFTER BATTLE COOLDOWN):[ ]([\+\-]\d+)>/i)) {
@@ -444,11 +483,17 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
                     obj.warmup = parseInt(RegExp.$1);
                 } else if (line.match(/<(?:ITEM)[ ](\d+)[ ](?:COOLDOWN):[ ](\d+)>/i)) {
                     obj.cooldown[parseInt(RegExp.$1)] = parseInt(RegExp.$2);
-
                 } else if (line.match(/<(?:ITYPE)[ ](\d+)[ ](?:COOLDOWN):[ ](\d+)>/i)) {
                     obj.itypeCooldown[parseInt(RegExp.$1)] = parseInt(RegExp.$2);
-                } else if (line.match(/<(?:GLOBAL COOLDOWN):[ ](\d+)>/i)) {
+                } else if (line.match(/<(?:ITYPE)[ ](\d+)[ ](?:PARTY COOLDOWN):[ ](\d+)>/i)) {
+                    obj.partyITypeCooldowns[parseInt(RegExp.$1)] = parseInt(RegExp.$2);
+                    obj.partyCooldown = true;
+                }
+                else if (line.match(/<(?:GLOBAL COOLDOWN):[ ](\d+)>/i)) {
                     obj.globalCooldown = parseInt(RegExp.$1);
+                }
+                else if (line.match(/<(?:GLOBAL PARTY COOLDOWN):[ ](\d+)>/i)) {
+                    obj.partyGlobalCooldown = parseInt(RegExp.$1);
                 } else if (line.match(/<(?:BYPASS COOLDOWN)>/i)) {
                     obj.bypassCooldown = true;
                 } else if (line.match(/<(?:COOLDOWN EVAL)>/i)) {
@@ -459,8 +504,14 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
                     evalMode = 'warmup';
                 } else if (line.match(/<\/(?:WARMUP EVAL)>/i)) {
                     evalMode = 'none';
+                } else if (line.match(/<(?:PARTY COOLDOWN EVAL)>/i)) {
+                    evalMode = 'partycooldown';
+                } else if (line.match(/<\/(?:PARTY COOLDOWN EVAL)>/i)) {
+                    evalMode = 'none';
                 } else if (evalMode === 'cooldown') {
                     obj.cooldownEval = obj.cooldownEval + line + '\n';
+                }else if (evalMode === 'partycooldown') {
+                    obj.partyCooldownEval = obj.partyCooldownEval + line + '\n';
                 } else if (evalMode === 'warmup') {
                     obj.warmupEval = obj.warmupEval + line + '\n';
                 }
@@ -564,6 +615,17 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
         return this._timeBasedItemCooldowns;
     };
 
+    if (!Imported.YEP_BattleEngineCore) {
+        var itemCooldownsBattleManager_endTurn = BattleManager.endTurn;
+        BattleManager.endTurn = function () {
+            itemCooldownsBattleManager_endTurn.call(this);
+            if (!BattleManager.timeBasedItemCooldowns()) {
+                $gameParty.updateItemPartyCooldowns();
+                $gameParty.updateItemPartyWarmups();
+            }
+        };
+    }
+
 
     //=============================================================================
     // Game_BattlerBase
@@ -605,7 +667,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
         if ($dataItems[itemId].bypassCooldown) return;
         if (this._itemCooldownTurns === undefined) this.clearItemCooldowns();
         this._itemCooldownTurns[itemId] = value;
-       };
+    };
 
     Game_BattlerBase.prototype.addItemCooldown = function (itemId, value) {
         if (!$dataItems[itemId]) return;
@@ -700,6 +762,10 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
 
     var itemCooldownsGameBattlerBase_meetsItemConditions = Game_BattlerBase.prototype.meetsItemConditions;
     Game_BattlerBase.prototype.meetsItemConditions = function (item) {
+        if (item.partyCooldown) {
+            if (this.friendsUnit().itemPartyCooldown(item.id) > 0) return false;
+            if (this.friendsUnit().itemPartyWarmup(item.id) > 0) return false;
+        }
         if (this.itemCooldown(item.id) > 0) return false;
         if (this.itemWarmup(item.id) > 0) return false;
         return itemCooldownsGameBattlerBase_meetsItemConditions.call(this, item);
@@ -837,20 +903,19 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     // Game_Battler
     //===============================================================================
 
-    var itemCooldownsGameBattler_onBattleStart = Game_Actor.prototype.onBattleStart;
-    Game_Actor.prototype.onBattleStart = function () {
-        itemCooldownsGameBattler_onBattleStart.call(this);
-        this.resetItemCooldownTickRates();
-        this.startItemWarmups();
-    };
-
     var itemCooldownsGameBattler_consumeItem = Game_Battler.prototype.consumeItem;
     Game_Battler.prototype.consumeItem = function (item) {
         if (DataManager.isItem(item)) {
+            $gameParty.payGlobalPartyItemCooldown(item);
+            $gameParty.payItypePartyCooldownCost(item);
+            $gameParty.payItemPartyCooldownCost(item,this);
+            $gameParty.applyItemPartyCooldownMods(item);
+
             this.payGlobalItemCooldown(item);
             this.payItypeCooldownCost(item);
             this.payItemCooldownCost(item);
             this.applyItemCooldownMods(item);
+
         }
         itemCooldownsGameBattler_consumeItem.call(this, item);
     };
@@ -935,9 +1000,21 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     };
 
 
-    // Battle Engine Core Compatibility
+    if (!Imported.YEP_BattleEngineCore) {
+        var itemCoolDownsGameBattler_onTurnEnd = Game_Battler.prototype.onTurnEnd;
+        Game_Battler.prototype.onTurnEnd = function () {
+            itemCoolDownsGameBattler_onTurnEnd.call(this);
+            if (!BattleManager.timeBasedItemCooldowns()) {
+                this.updateItemCooldowns();
+                this.updateItemWarmups();
+            }
+        };
+    }
 
+
+    // Battle Engine Core Compatibility
     if (Imported.YEP_BattleEngineCore) {
+
         var itemCoolDownsGameBattler_onTurnStart = Game_Battler.prototype.onTurnStart;
         Game_Battler.prototype.onTurnStart = function () {
             itemCoolDownsGameBattler_onTurnStart.call(this);
@@ -954,16 +1031,23 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
                 this.updateItemCooldownTicks();
                 this.updateItemWarmupTicks();
             }
-            ;
+
         };
 
     }
-    ;
 
 
     //=============================================================================
     // Game_Actor
     //=============================================================================
+
+
+    var itemCooldownsGameActor_onBattleStart = Game_Actor.prototype.onBattleStart;
+    Game_Actor.prototype.onBattleStart = function () {
+        itemCooldownsGameActor_onBattleStart.call(this);
+        this.resetItemCooldownTickRates();
+        this.startItemWarmups();
+    };
 
     Game_Actor.prototype.itemCooldownDuration = function (item) {
         var value = Game_Battler.prototype.itemCooldownDuration.call(this, item);
@@ -1114,7 +1198,9 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     var itemCooldownsGameAction_applyItemUserEffect = Game_Action.prototype.applyItemUserEffect;
     Game_Action.prototype.applyItemUserEffect = function (target) {
         itemCooldownsGameAction_applyItemUserEffect.call(this, target);
+        $gameParty.applyItemPartyCooldownEffect(this.item());
         target.applyItemCooldownEffect(this.item());
+
     };
 
 
@@ -1131,10 +1217,12 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     };
 
     Game_Unit.prototype.endBattleItemCooldowns = function () {
-        return this.members().forEach(function (member) {
+        this.members().forEach(function (member) {
             member.endBattleItemCooldowns();
             member.clearItemWarmups();
         });
+        this.clearItemPartyWarmups();
+        this.endBattlePartyItemCooldowns();
     };
 
     //=============================================================================
@@ -1145,6 +1233,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     Game_Party.prototype.increaseSteps = function () {
         itemCooldownsGameParty_increaseSteps.call(this);
         this.updateItemCooldownSteps();
+        this.updateItemPartyCooldownSteps();
     };
 
     Game_Party.prototype.updateItemCooldownSteps = function () {
@@ -1153,6 +1242,502 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
         });
     };
 
+    var itemCooldownsGameParty_initialize = Game_Party.prototype.initialize;
+    Game_Party.prototype.initialize = function () {
+        itemCooldownsGameParty_initialize.call(this);
+        this.clearItemPartyCooldowns();
+        this.clearItemPartyWarmups();
+    };
+
+    var itemCooldownsGameParty_onBattleStart = Game_Party.prototype.onBattleStart;
+    Game_Party.prototype.onBattleStart = function () {
+        itemCooldownsGameParty_onBattleStart.call(this);
+        this.resetItemPartyCooldownTickRates();
+        this.startItemPartyWarmups();
+    };
+
+
+    Game_Party.prototype.clearItemPartyCooldowns = function () {
+        this._itemCooldownTurns = {};
+    };
+
+    Game_Party.prototype.clearItemPartyWarmups = function () {
+        this._itemWarmupTurns = {};
+    };
+
+    Game_Party.prototype.itemPartyCooldown = function (itemId) {
+        if (this._itemCooldownTurns === undefined) this.clearItemPartyCooldowns();
+        if (this._itemCooldownTurns[itemId] === undefined) {
+            this._itemCooldownTurns[itemId] = 0;
+        }
+        return this._itemCooldownTurns[itemId];
+    };
+
+    Game_Party.prototype.itemPartyWarmup = function (itemId) {
+        if (this._itemWarmupTurns === undefined) this.clearItemPartyWarmups();
+        if (this._itemWarmupTurns[itemId] === undefined) {
+            this._itemWarmupTurns[itemId] = 0;
+        }
+        return this._itemWarmupTurns[itemId];
+    };
+
+    Game_Party.prototype.setItemPartyCooldown = function (itemId, value) {
+        if (!$dataItems[itemId]) return;
+        if ($dataItems[itemId].bypassCooldown) return;
+        if (this._itemCooldownTurns === undefined) this.clearItemPartyCooldowns();
+        this._itemCooldownTurns[itemId] = value;
+    };
+
+    Game_Party.prototype.addItemPartyCooldown = function (itemId, value) {
+        if (!$dataItems[itemId]) return;
+        if ($dataItems[itemId].bypassCooldown) return;
+        if (this._itemCooldownTurns === undefined) this.clearItemPartyCooldowns();
+        if (!this._itemCooldownTurns[itemId]) this._itemCooldownTurns[itemId] = 0;
+        this._itemCooldownTurns[itemId] += value;
+    };
+
+    Game_Party.prototype.setItemPartyWarmup = function (itemId, value) {
+        if (!$dataItems[itemId]) return;
+        if ($dataItems[itemId].bypassCooldown) return;
+        if (this._itemWarmupTurns === undefined) this.clearItemPartyWarmups();
+        this._itemWarmupTurns[itemId] = value;
+    };
+
+    Game_Party.prototype.startItemPartyWarmups = function () {
+        if (this._itemWarmupTurns === undefined) this.clearItemPartyWarmups();
+        for (var i = 0; i < this.items().length; ++i) {
+            var item = this.items()[i];
+            if (!item) continue;
+
+            var warmup = item.warmup;
+            if (item.warmupEval.length > 0) {
+                var item = item;
+                var members = this.allMembers();
+                var battlers = this.battleMembers();
+                var leader = this.leader();
+                var party = this;
+                var s = $gameSwitches._data;
+                var v = $gameVariables._data;
+                eval(item.warmupEval);
+            }
+            warmup *= this.itemPartyCooldownDuration(item);
+            warmup += this.getItemPartyWarmupMods(item);
+
+            this.setItemPartyWarmup(item.id, warmup);
+
+        }
+    };
+
+    Game_Party.prototype.updateItemPartyCooldowns = function () {
+        if (this._itemCooldownTurns === undefined) this.clearItemPartyCooldowns();
+        for (var itemId in this._itemCooldownTurns) {
+            var item = $dataItems[itemId];
+            if (!item) continue;
+            this._itemCooldownTurns[itemId] -= this.itemPartyCooldownRate(item);
+        }
+    };
+
+    Game_Party.prototype.updateItemPartyWarmups = function () {
+        if (this._itemWarmupTurns === undefined) this.clearItemPartyWarmups();
+        for (var itemId in this._itemWarmupTurns) {
+            var item = $dataItems[itemId];
+            if (!item) continue;
+            this._itemWarmupTurns[itemId] -= this.itemPartyCooldownRate(item);
+        }
+    };
+
+
+    Game_Party.prototype.itemCooldownPartyRateTick = function (item) {
+        this._itemCooldownTickRate = this._itemCooldownTickRate || {};
+        if (!this._itemCooldownTickRate[item.id]) {
+            this._itemCooldownTickRate[item.id] = this.itemPartyCooldownRate(item);
+        }
+        var rate = this._itemCooldownTickRate[item.id];
+        rate *= BattleManager.tickRate() / $.Param.cdTurnTime;
+        return rate;
+    };
+
+    Game_Party.prototype.updateItemPartyCooldownTicks = function () {
+        if (this._itemCooldownTurns === undefined) this.clearItemPartyCooldowns();
+        for (var itemId in this._itemCooldownTurns) {
+            var item = $dataItems[itemId];
+            if (!item) continue;
+            if (this._itemCooldownTurns[itemId] <= 0) continue;
+            this._itemCooldownTurns[itemId] -= this.itemCooldownPartyRateTick(item);
+            this._itemCooldownTurns[itemId] = Math.max(0, this._itemCooldownTurns[itemId]);
+        }
+    };
+
+    Game_Party.prototype.updateItemPartyWarmupTicks = function () {
+        if (this._itemWarmupTurns === undefined) this.clearItemPartyWarmups();
+        for (var itemId in this._itemWarmupTurns) {
+            var item = $dataSkills[itemId];
+            if (!item) continue;
+            if (this._itemWarmupTurns[itemId] <= 0) continue;
+            this._itemWarmupTurns[itemId] -= this.itemCooldownPartyRateTick(item);
+            this._itemWarmupTurns[itemId] = Math.max(0, this._itemWarmupTurns[itemId]);
+        }
+    };
+
+    Game_Party.prototype.endBattlePartyItemCooldowns = function () {
+        this.resetItemPartyCooldownTickRates();
+        for (var itemId in this._itemCooldownTurns) {
+            this._itemCooldownTurns[itemId] += $dataItems[itemId].afterBattleCooldown;
+        }
+    };
+
+    Game_Party.prototype.resetItemPartyCooldownTickRates = function () {
+        this._itemCooldownTickRate = {};
+    };
+
+
+    Game_Party.prototype.updateItemPartyCooldownSteps = function () {
+        for (var itemId in this._itemCooldownTurns) {
+            var item = $dataItems[itemId];
+            if (item) {
+                if (this.steps() % item.cooldownSteps === 0) {
+                    this._itemCooldownTurns[itemId] -= this.itemPartyCooldownRate(item);
+                }
+            }
+        }
+    };
+
+    Game_Party.prototype.applyItemPartyCooldownEffect = function (item) {
+        this.applyGlobalItemPartyCooldownChange(item);
+        this.applyItypePartyCooldownChange(item);
+        this.applyItemPartyCooldownChange(item);
+    };
+
+
+    Game_Party.prototype.applyItemPartyCooldownChange = function (item) {
+        for (var itemId in item.cooldownChange) {
+            itemId = parseInt(itemId);
+            if (!$dataItems[itemId]) continue;
+            if (!item.cooldownChange[itemId]) continue;
+            var value = item.cooldownChange[itemId];
+            this.addItemPartyCooldown(itemId, value);
+        }
+    };
+
+
+    Game_Party.prototype.applyItypePartyCooldownChange = function (mainItem) {
+        for (var itypeId in mainItem.itypeCooldownChange) {
+            itypeId = parseInt(itypeId);
+            for (var i = 0; i < $gameParty.items().length; ++i) {
+                var item = $gameParty.items()[i];
+                if (!item) continue;
+                if (item.itemTypeId !== itypeId) continue;
+                if (!mainItem.itypeCooldownChange[itypeId]) continue;
+                var value = mainItem.itypeCooldownChange[itypeId];
+                this.addItemPartyCooldown(item.id, value);
+            }
+        }
+    };
+
+    Game_Party.prototype.itemPartyCooldownDuration = function (item) {
+        var itemId = item.id;
+        var itypeId = item.itemTypeId;
+        var value = 1.0;
+        for (var m = 0; m < this.members().length; m++) {
+            var member = this.members()[m];
+            for (var i = 0; i < member.states().length; ++i) {
+                var state = member.states()[i];
+                if (!state) continue;
+                if (state.itemCooldownDuration[itemId] !== undefined) {
+                    value *= state.itemCooldownDuration[itemId];
+                }
+                if (state.itypeCooldownDuration[itypeId] !== undefined) {
+                    value *= state.itypeCooldownDuration[itypeId];
+                }
+                value *= state.itemGlobalCooldownDuration;
+            }
+            if (member.actor().itemCooldownDuration[itemId] !== undefined) {
+                value *= member.actor().itemCooldownDuration[itemId];
+            }
+            if (member.currentClass().itemCooldownDuration[itemId] !== undefined) {
+                value *= member.currentClass().itemCooldownDuration[itemId];
+            }
+            if (member.actor().itypeCooldownDuration[itypeId] !== undefined) {
+                value *= member.actor().itypeCooldownDuration[itypeId];
+            }
+            if (member.currentClass().itypeCooldownDuration[itypeId] !== undefined) {
+                value *= member.currentClass().itypeCooldownDuration[itypeId];
+            }
+            value *= member.actor().itemGlobalCooldownDuration;
+            value *= member.currentClass().itemGlobalCooldownDuration;
+            for (var e = 0; e < member.equips().length; ++e) {
+                var equip = member.equips()[e];
+                if (!equip) continue;
+                if (equip.itemCooldownDuration !== undefined) {
+                    if (equip.itemCooldownDuration[itemId] !== undefined) {
+                        value *= equip.itemCooldownDuration[itemId];
+                    }
+                }
+                if (equip.itypeCooldownDuration !== undefined) {
+                    if (equip.itypeCooldownDuration[itypeId] !== undefined) {
+                        value *= equip.itypeCooldownDuration[itypeId];
+                    }
+                }
+                if (equip.itemGlobalCooldownDuration !== undefined) {
+                    value *= equip.itemGlobalCooldownDuration;
+                }
+            }
+
+        }
+
+        return value;
+    };
+
+    Game_Party.prototype.itemPartyCooldownRate = function (item) {
+        var itemId = item.id;
+        var itypeId = item.itemTypeId;
+        var value = 1;
+        for (var m = 0; m < this.members().length; m++) {
+            var member = this.members()[m];
+            for (var i = 0; i < member.states().length; ++i) {
+                var state = member.states()[i];
+                if (!state) continue;
+                if (state.itemCooldownRate[itemId] !== undefined) {
+                    value *= state.itemCooldownRate[itemId];
+                }
+                if (state.itypeCooldownRate[itypeId] !== undefined) {
+                    value *= state.itypeCooldownRate[itypeId];
+                }
+                value *= state.itemGlobalCooldownRate;
+            }
+
+            if (member.actor().itemCooldownRate[itemId] !== undefined) {
+                value *= member.actor().itemCooldownRate[itemId];
+            }
+            if (member.currentClass().itemCooldownRate[itemId] !== undefined) {
+                value *= member.currentClass().itemCooldownRate[itemId];
+            }
+            if (member.actor().itypeCooldownRate[itypeId] !== undefined) {
+                value *= member.actor().itypeCooldownRate[itypeId];
+            }
+            if (member.currentClass().itypeCooldownRate[itypeId] !== undefined) {
+                value *= member.currentClass().itypeCooldownRate[itypeId];
+            }
+            value *= member.actor().itemGlobalCooldownRate;
+            value *= member.currentClass().itemGlobalCooldownRate;
+            for (var e = 0; e < member.equips().length; ++e) {
+                var equip = member.equips()[e];
+                if (!equip) continue;
+                if (equip.itemCooldownRate !== undefined) {
+                    if (equip.itemCooldownRate[itemId] !== undefined) {
+                        value *= equip.itemCooldownRate[itemId];
+                    }
+                }
+                if (equip.itypeCooldownRate !== undefined) {
+                    if (equip.itypeCooldownRate[itypeId] !== undefined) {
+                        value *= equip.itypeCooldownRate[itypeId];
+                    }
+                }
+                if (equip.itemGlobalCooldownRate !== undefined) {
+                    value *= equip.itemGlobalCooldownRate;
+                }
+            }
+        }
+
+        return value;
+    };
+
+
+    Game_Party.prototype.flatItemPartyCooldownChange = function (item) {
+        var itemId = item.id;
+        var itypeId = item.itemTypeId;
+        var value = 0;
+        for (var m = 0; m < this.members().length; m++) {
+            var member = this.members()[m];
+            for (var i = 0; i < member.states().length; ++i) {
+                var state = member.states()[i];
+                if (!state) continue;
+                if (state.itemCooldownChange[itemId] !== undefined) {
+                    value += state.itemCooldownChange[itemId];
+                }
+                if (state.itypeCooldownChange[itypeId] !== undefined) {
+                    value += state.itypeCooldownChange[itypeId];
+                }
+                value += state.itemGlobalCooldownChange;
+            }
+
+            if (member.actor().itemCooldownChange[itemId] !== undefined) {
+                value += member.actor().itemCooldownChange[itemId];
+            }
+            if (member.currentClass().itemCooldownChange[itemId] !== undefined) {
+                value += member.currentClass().itemCooldownChange[itemId];
+            }
+            if (member.actor().itypeCooldownChange[itypeId] !== undefined) {
+                value += member.actor().itypeCooldownChange[itypeId];
+            }
+            if (member.currentClass().itypeCooldownChange[itypeId] !== undefined) {
+                value += member.currentClass().itypeCooldownChange[itypeId];
+            }
+            value += member.actor().itemGlobalCooldownChange;
+            value += member.currentClass().itemGlobalCooldownChange;
+            for (var e = 0; e < member.equips().length; ++e) {
+                var equip = member.equips()[e];
+                if (!equip) continue;
+                if (equip.itemCooldownChange === undefined) continue;
+                if (equip.itemCooldownChange[itemId] !== undefined) {
+                    value += equip.itemCooldownChange[itemId];
+                }
+                if (equip.itypeCooldownChange[itypeId] !== undefined) {
+                    value += equip.itypeCooldownChange[itypeId];
+                }
+                value += equip.itemGlobalCooldownChange;
+            }
+
+        }
+        return value;
+    };
+
+    Game_Party.prototype.flatItemPartyWarmupChange = function (item) {
+        var itemId = item.id;
+        var itypeId = item.itemTypeId;
+        var value = 0;
+        for (var m = 0; m < this.members().length; m++) {
+            var member = this.members()[m];
+            for (var i = 0; i < member.states().length; ++i) {
+                var state = member.states()[i];
+                if (!state) continue;
+                if (state.itemWarmupChange[itemId] !== undefined) {
+                    value += state.itemWarmupChange[itemId];
+                }
+                if (state.itypeWarmupChange[itypeId] !== undefined) {
+                    value += state.itypeWarmupChange[itypeId];
+                }
+                value += state.itemGlobalWarmupChange;
+            }
+
+            if (member.actor().itemWarmupChange[itemId] !== undefined) {
+                value += member.actor().itemWarmupChange[itemId];
+            }
+            if (member.currentClass().itemWarmupChange[itemId] !== undefined) {
+                value += member.currentClass().itemWarmupChange[itemId];
+            }
+            if (member.actor().itypeWarmupChange[itypeId] !== undefined) {
+                value += member.actor().itypeWarmupChange[itypeId];
+            }
+            if (member.currentClass().itypeWarmupChange[itypeId] !== undefined) {
+                value += member.currentClass().itypeWarmupChange[itypeId];
+            }
+            value += member.actor().itemGlobalWarmupChange;
+            value += member.currentClass().itemGlobalWarmupChange;
+            for (var e = 0; e < member.equips().length; ++e) {
+                var equip = member.equips()[e];
+                if (!equip) continue;
+                if (equip.itemWarmupChange === undefined) continue;
+                if (equip.itemWarmupChange[itemId] !== undefined) {
+                    value += equip.itemWarmupChange[itemId];
+                }
+                if (equip.itypeWarmupChange[itypeId] !== undefined) {
+                    value += equip.itypeWarmupChange[itypeId];
+                }
+                value += equip.itemGlobalWarmupChange;
+            }
+
+        }
+        return value;
+    };
+
+    Game_Party.prototype.applyGlobalItemPartyCooldownChange = function (mainItem) {
+        for (var i = 0; i < $gameParty.items().length; ++i) {
+            var item = $gameParty.items()[i];
+            if (!item) continue;
+            var value = mainItem.itemGlobalCooldownChange;
+            this.addItemPartyCooldown(item.id, value);
+        }
+    };
+
+
+    Game_Party.prototype.getItemPartyWarmupMods = function (item) {
+        var value = 0;
+        value += this.flatItemPartyWarmupChange(item);
+        return value;
+    };
+
+    Game_Party.prototype.applyItemPartyCooldownMods = function (item) {
+        var value = this.itemPartyCooldown(item.id);
+        value += this.flatItemPartyCooldownChange(item);
+        this.setItemPartyCooldown(item.id, Math.max(0, value));
+    };
+
+
+    Game_Party.prototype.payGlobalPartyItemCooldown = function (mainItem) {
+        for (var i = 0; i < this.items().length; ++i) {
+            var item = this.items()[i];
+            if (!item) continue;
+            var value = mainItem.partyGlobalCooldown;
+            value *= this.itemPartyCooldownDuration(mainItem);
+            value = Math.max(value, this.itemPartyCooldown(item.id));
+            this.setItemPartyCooldown(item.id, value);
+        }
+    };
+
+    Game_Party.prototype.payItypePartyCooldownCost = function (mainItem) {
+        for (var itypeId in mainItem.partyITypeCooldowns) {
+            itypeId = parseInt(itypeId);
+            for (var i = 0; i < this.items().length; ++i) {
+                var item = this.items()[i];
+                if (!item) continue;
+                if (item.itemTypeId !== itypeId) continue;
+                var value = mainItem.partyITypeCooldowns[itypeId];
+                if (value <= 0) continue;
+                value *= this.itemPartyCooldownDuration(mainItem);
+                value = Math.max(value, this.itemPartyCooldown(item.id));
+                this.setItemPartyCooldown(item.id, value);
+            }
+        }
+    };
+
+    Game_Party.prototype.payItemPartyCooldownCost = function (item,actor) {
+        for (var itemId in item.partyCooldownTurns) {
+            itemId = parseInt(itemId);
+            if (!$dataItems[itemId]) continue;
+            var cooldown = item.partyCooldownTurns[itemId];
+            if (cooldown <= 0) continue;
+            if (item.id === itemId) {
+                if (item.partyCooldownEval.length > 0) {
+                    var item = item;
+                    var members = this.allMembers();
+                    var battlers = this.battleMembers();
+                    var leader = this.leader();
+                    var party = this;
+                    var actor = actor;
+                    var subject = actor;
+                    var a = actor;
+                    var s = $gameSwitches._data;
+                    var v = $gameVariables._data;
+                    eval(item.partyCooldownEval);
+                }
+            }
+            cooldown *= this.itemPartyCooldownDuration(item);
+            cooldown = Math.max(cooldown, this.itemPartyCooldown(item.id));
+            this.setItemPartyCooldown(itemId, cooldown);
+        }
+    };
+
+
+    if (Imported.YEP_BattleEngineCore) {
+        var itemCooldownsGameParty_onTurnStart = Game_Party.prototype.onTurnStart;
+        Game_Party.prototype.onTurnStart = function () {
+            itemCooldownsGameParty_onTurnStart.call(this);
+            if (BattleManager.isTickBased() && !BattleManager.timeBasedItemCooldowns()) {
+                this.updateItemPartyCooldowns();
+                this.updateItemPartyWarmups();
+            }
+        };
+
+        var itemCooldownsGameParty_updateTick = Game_Party.prototype.updateTick;
+        Game_Party.prototype.updateTick = function () {
+            itemCooldownsGameParty_updateTick.call(this);
+            if (BattleManager.isTickBased() && BattleManager.timeBasedItemCooldowns()) {
+                this.updateItemPartyCooldownTicks();
+                this.updateItemPartyWarmupTicks();
+            }
+        };
+    }
 
     //=============================================================================
     // Window_ItemList
@@ -1196,22 +1781,46 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
     };
 
 
+    Window_ItemList.prototype.itemCooldown = function (item) {
+        var actorCooldown = this.actor().itemCooldown(item.id);
+        var partyCooldown = $gameParty.itemPartyCooldown(item.id);
+
+        if (actorCooldown > partyCooldown) {
+            return actorCooldown;
+        }
+        return partyCooldown;
+
+    };
+
+    Window_ItemList.prototype.itemWarmup = function (item) {
+        var actorWarmup = this.actor().itemWarmup(item.id);
+        var partyWarmup = $gameParty.itemPartyWarmup(item.id);
+
+        if (actorWarmup > partyWarmup) {
+            return actorWarmup;
+        }
+        return partyWarmup;
+
+    };
+
     var itemCooldownsWindowItemList_drawItem = Window_ItemList.prototype.drawItem;
     Window_ItemList.prototype.drawItem = function (index) {
         var item = this._data[index];
         if (item) {
             if (DataManager.isItem(item)) {
-                if (this.actor().itemWarmup(item.id) > 0) {
+                if (this.itemWarmup(item) > 0) {
                     this.drawItemWarmup(item, index);
-                } else if (this.actor().itemCooldown(item.id) > 0) {
+                } else if (this.itemCooldown(item) > 0) {
                     this.drawItemCooldown(item, index);
                 } else {
                     return itemCooldownsWindowItemList_drawItem.call(this, index);
                 }
-            } else {
-                return itemCooldownsWindowItemList_drawItem.call(this, index);
             }
         }
+        else {
+            return itemCooldownsWindowItemList_drawItem.call(this, index);
+        }
+
     };
 
     Window_ItemList.prototype.drawItemWarmup = function (item, index) {
@@ -1244,7 +1853,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
         }
         this.changeTextColor(this.textColor($.Param.cdTextColor));
         var fmt = $.Param.cdFmt;
-        var value = this.actor().itemCooldown(item.id);
+        var value = this.itemCooldown(item);
         if (value % 1 !== 0) value = value.toFixed(2);
         if (value <= 0.009) value = 0.01;
         var text = fmt.format(Anima.Util.toGroup(value));
@@ -1263,7 +1872,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
         }
         this.changeTextColor(this.textColor($.Param.wuTextColor));
         var fmt = $.Param.wuFmt;
-        var value = this.actor().itemWarmup(item.id);
+        var value = this.itemWarmup(item);
         if (value % 1 !== 0) value = value.toFixed(2);
         if (value <= 0.009) value = 0.01;
         var text = fmt.format(Anima.Util.toGroup(value));
@@ -1378,6 +1987,7 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
             if (typeof inVal !== 'string') {
                 inVal = String(inVal);
             }
+            if (!Yanfly.Param.DigitGroup) return inVal;
             if (!eval(Yanfly.Param.DigitGroup)) return inVal;
             return inVal.replace(/(^|[^\w.])(\d{4,})/g, function ($0, $1, $2) {
                 return $1 + $2.replace(/\d(?=(?:\d\d\d)+(?!\d))/g, "$&,");
@@ -1388,4 +1998,4 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
 })(Anima.ItemCooldowns);
 
 ItemCooldowns = Anima.ItemCooldowns;
-Imported["Anima_ItemCooldowns"] = 1.01;
+Imported["Anima_ItemCooldowns"] = 1.02;
