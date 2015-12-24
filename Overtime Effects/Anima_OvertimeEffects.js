@@ -2,7 +2,7 @@
  * Anima - Overtime Effects
  * By Liquidize - http://anima.mintkit.lol
  * Anima_OvertimeEffects.js
- * Version: 1.03
+ * Version: 1.04
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -320,6 +320,9 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.04:
+ *             - Fixed an issue where 'same damage' effects were not applying.
+ *
  * Version 1.03:
  *             - Fixed an issue where an effect would apply to dead enemies.
  *
@@ -475,11 +478,11 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
     var overtimeEffectsGameBattler_updateTick = Game_Battler.prototype.updateTick;
     Game_Battler.prototype.updateTick = function () {
         overtimeEffectsGameBattler_updateTick.call(this);
+        if (this.isDead()) return;
         if ($.Param.isTickBased) {
             var value = BattleManager.tickRate() / Yanfly.Param.BECTurnTime;
             this.ottick -= value;
             if (this.ottick <= 0) {
-                if (this.isDead()) return;
                 this.updateOvertimeEffects();
                 this.ottick = 1;
             }
@@ -490,8 +493,8 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
     var overtimeEffectsGameBattler_onTurnEnd = Game_Battler.prototype.onTurnEnd;
     Game_Battler.prototype.onTurnEnd = function () {
         overtimeEffectsGameBattler_onTurnEnd.call(this);
+        if (this.isDead()) return;
         if (!$.Param.isTickBased) {
-            if (this.isDead()) return;
             this.updateOvertimeEffects();
         }
     };
@@ -506,11 +509,12 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
             var b = this;
             var s = $gameSwitches;
             var v = $gameVariables;
-            eval(oteffect.effect.formula)
+            eval(oteffect.effect.formula);
             value = value * this.getOvertimeElementRate(oteffect);
             if (oteffect.effect.variance > 0) {
                 value = Game_Action.prototype.applyVariance.call(this, value, oteffect.effect.variance);
             }
+
             return Math.round(value);
         } catch (e) {
             console.warn(e);
@@ -523,7 +527,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
         var mpdamage = 0;
         var tpdamage = 0;
 
-        if (oteffect.damage == null && oteffect.samedmg) {
+        if (oteffect.damage == 0 && oteffect.effect.samedmg) {
             oteffect.damage = this.evalOvertimeFormula(oteffect);
         }
         if (oteffect.effect.samedmg != true) {
@@ -636,7 +640,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
             if ($.Param.isSingleTick !== true) {
                 this.applyOvertimeEffect(oteffect);
             } else {
-                if (oteffect.damage == null && oteffect.samedmg) {
+                if (oteffect.damage == 0 && oteffect.effect.samedmg) {
                     oteffect.damage = this.evalOvertimeFormula(oteffect);
                 }
                 if (oteffect.effect.samedmg != true) {
@@ -714,7 +718,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
                     oteffectobj.attacker = this.subject();
                     oteffectobj.effect = state.oteffects[o];
                     oteffectobj.stateid = state.id;
-                    oteffectobj.damage = null;
+                    oteffectobj.damage = 0;
                     if ($.Param.applyTickOnGain) {
                         target.applyOvertimeEffect(oteffectobj);
                     }
@@ -727,4 +731,4 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
 })(Anima.OvertimeEffects);
 
 OvertimeEffects = Anima.OvertimeEffects;
-Imported["Anima_OvertimeEffects"] = 1.03;
+Imported["Anima_OvertimeEffects"] = 1.04;
