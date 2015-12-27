@@ -2,7 +2,7 @@
  * Anima - Overtime Effects
  * By Liquidize - http://anima.mintkit.lol
  * Anima_OvertimeEffects.js
- * Version: 1.04
+ * Version: 1.05
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -251,6 +251,54 @@
  *
  * ----------------------------------------------------------------------------
  * TAG(S):
+ *    STACK EFFECT: <x>
+ *
+ * WHAT THEY DO:
+ *             The above attribute is used to determine whether or not the state
+ *             applies the effect multiple times, aka stacking. If set to false
+ *             then the effect is only applied once, and not again until that effect
+ *             falls off.
+ *
+ * USAGE:
+ *      Where <x> is specify true or false.
+ *
+ * EXAMPLE:
+ *        STACK EFFECT: false
+ *        STACK EFFECT: true
+ *
+ * EXPLANATION:
+ *            Signifies whether the state stacks this effect, if true the effect
+ *            is applied multiple times, if false, the effect is applied only once.
+ *
+ * OPTIONAL:
+ *          Yes, if not specified it is assumed the effect will not stack the
+ *          effect.
+ * ----------------------------------------------------------------------------
+ *
+ * ----------------------------------------------------------------------------
+ * TAG(S):
+ *    STACK MAX: <x>
+ *
+ * WHAT THEY DO:
+ *             The above attribute is used to set the maximum amount of time a effect
+ *             can stack. This must be 1 or higher.
+ *
+ * USAGE:
+ *      Where <x> is specify 1 or higher.
+ *
+ * EXAMPLE:
+ *        STACK MAX: 5
+ *        STACK MAX: 2
+ *
+ * EXPLANATION:
+ *            Signifies whether the effect has a maximum stack amount of x.
+ *
+ * OPTIONAL:
+ *          Yes, if not specified it is assumed the effect will have no stack limit.
+ * ----------------------------------------------------------------------------
+ *
+ * ----------------------------------------------------------------------------
+ * TAG(S):
  *    <Formula> and </Formula>
  *
  * WHAT THEY DO:
@@ -320,6 +368,9 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.05:
+ *             - Fixed an issue with stacking effects.
+ *
  * Version 1.04:
  *             - Fixed an issue where 'same damage' effects were not applying.
  *
@@ -377,6 +428,8 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
         var note3 = /(?:HEAL|healing):[ ](true|false)/i;
         var note4 = /(?:ELEMENT|elemental type):[ ](\d+)/i;
         var note5 = /(?:SAME DAMAGE):[ ](true|false)/i;
+        var note6 = /(?:STACK EFFECT|Stack):[ ](true|false)/i;
+        var note7 = /(?:STACK LIMIT:Stack Max):[ ](\d+)/i;
         for (var n = 1; n < group.length; n++) {
             var obj = group[n];
             var notedata = obj.note.split(/[\r\n]+/);
@@ -395,6 +448,8 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
                     otobj.element = 0;
                     otobj.stat = 0;
                     otobj.samedmg = false;
+                    otobj.stack = false;
+                    otobj.stackmax = -1;
                     otinfo = true;
                 } else if (line.match(/<\/(?:OVERTIME EFFECT|overtime)>/i)) {
                     obj.oteffects.push(otobj);
@@ -413,6 +468,10 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
                         otobj.element = Number(RegExp.$1);
                     } else if (line.match(note5)) {
                         otobj.samedmg = eval(RegExp.$1);
+                    } else if (line.match(note6)) {
+                        otobj.stack = eval(RegExp.$1);
+                    } else if (line.match(note7)) {
+                        otobj.stackmax = parseInt(RegExp.$1);
                     }
                     else if (line.match(/<(?:FORMULA)>/i)) {
                         formula = true;
@@ -536,25 +595,25 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
         if (oteffect.effect.healing) {
             switch (oteffect.effect.stat) {
                 case 0:
-                    damage -= oteffect.damage;
+                    damage -= oteffect.damage * oteffect.stackcount;
                     break;
                 case 1:
-                    mpdamage -= oteffect.damage;
+                    mpdamage -= oteffect.damage * oteffect.stackcount;
                     break;
                 case 4:
-                    tpdamage -= oteffect.damage;
+                    tpdamage -= oteffect.damage * oteffect.stackcount;
                     break;
             }
         } else {
             switch (oteffect.effect.stat) {
                 case 0:
-                    damage += oteffect.damage;
+                    damage += oteffect.damage * oteffect.stackcount;
                     break;
                 case 1:
-                    mpdamage += oteffect.damage;
+                    mpdamage += oteffect.damage * oteffect.stackcount;
                     break;
                 case 4:
-                    tpdamage += oteffect.damage;
+                    tpdamage += oteffect.damage * oteffect.stackcount;
                     break;
             }
         }
@@ -649,25 +708,25 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
                 if (oteffect.effect.healing) {
                     switch (oteffect.effect.stat) {
                         case 0:
-                            damage -= oteffect.damage;
+                            damage -= oteffect.damage * oteffect.stackcount;
                             break;
                         case 1:
-                            mpdamage -= oteffect.damage;
+                            mpdamage -= oteffect.damage * oteffect.stackcount;
                             break;
                         case 4:
-                            tpdamage -= oteffect.damage;
+                            tpdamage -= oteffect.damage * oteffect.stackcount;
                             break;
                     }
                 } else {
                     switch (oteffect.effect.stat) {
                         case 0:
-                            damage += oteffect.damage;
+                            damage += oteffect.damage * oteffect.stackcount;
                             break;
                         case 1:
-                            mpdamage += oteffect.damage;
+                            mpdamage += oteffect.damage * oteffect.stackcount;
                             break;
                         case 4:
-                            tpdamage += oteffect.damage;
+                            tpdamage += oteffect.damage * oteffect.stackcount;
                             break;
                     }
                 }
@@ -719,10 +778,37 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
                     oteffectobj.effect = state.oteffects[o];
                     oteffectobj.stateid = state.id;
                     oteffectobj.damage = 0;
-                    if ($.Param.applyTickOnGain) {
-                        target.applyOvertimeEffect(oteffectobj);
+                    oteffectobj.stackcount = 1;
+
+                    var hasEffect = false;
+                    var targetEffect = null;
+                    for (var i = 0; i < target._oteffects.length; i++) {
+                        if (target._oteffects[i].effect === oteffectobj.effect) {
+                            hasEffect = true;
+                            targetEffect = target._oteffects[i];
+                            break;
+                        }
                     }
-                    target._oteffects.push(oteffectobj);
+                    if (hasEffect) {
+                        if (oteffectobj.effect.stack) {
+                            if (targetEffect !== null) {
+                                if (targetEffect.effect.stackmax !== -1) {
+                                    if ((targetEffect.stackcount + 1) > targetEffect.effect.stackmax) {
+                                        targetEffect.stackcount = targetEffect.effect.stackmax;
+                                    } else {
+                                        targetEffect.stackcount += 1;
+                                    }
+                                } else {
+                                    targetEffect.stackcount += 1;
+                                }
+                            }
+                        }
+                    } else {
+                        if ($.Param.applyTickOnGain) {
+                            target.applyOvertimeEffect(oteffectobj);
+                        }
+                        target._oteffects.push(oteffectobj);
+                    }
                 }
             }
         }
@@ -731,4 +817,4 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
 })(Anima.OvertimeEffects);
 
 OvertimeEffects = Anima.OvertimeEffects;
-Imported["Anima_OvertimeEffects"] = 1.04;
+Imported["Anima_OvertimeEffects"] = 1.05;
