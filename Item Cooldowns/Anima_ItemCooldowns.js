@@ -2,7 +2,7 @@
  * Anima - Item Cooldowns
  * By Liquidize - http://anima.mintkit.lol
  * Anima_ItemCooldowns.js
- * Version: 1.02
+ * Version: 1.03
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *
@@ -371,6 +371,9 @@
  * ============================================================================
  * Change Log
  * ============================================================================
+ *
+ * Version 1.03:
+ *            - Fixed an issue that caused weapons and armors to not display.
  *
  * Version 1.02:
  *            - Fixed a bug that caused the plugin to not function
@@ -1816,6 +1819,9 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
                     return itemCooldownsWindowItemList_drawItem.call(this, index);
                 }
             }
+            else {
+                return itemCooldownsWindowItemList_drawItem.call(this, index);
+            }
         }
         else {
             return itemCooldownsWindowItemList_drawItem.call(this, index);
@@ -1998,4 +2004,4 @@ Anima.ItemCooldowns = Anima.ItemCooldowns || {};
 })(Anima.ItemCooldowns);
 
 ItemCooldowns = Anima.ItemCooldowns;
-Imported["Anima_ItemCooldowns"] = 1.02;
+Imported["Anima_ItemCooldowns"] = 1.03;
