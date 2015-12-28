@@ -2,7 +2,7 @@
  * Anima - Overtime Effects
  * By Liquidize - http://anima.mintkit.lol
  * Anima_OvertimeEffects.js
- * Version: 1.05
+ * Version: 1.05a
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -368,6 +368,11 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.05a:
+ *             - Fixed an issue with STACK MAX regular expression.
+ *             - Fixed an issue that caused effects to not apply on the final
+ *             turn if not using CTB/ATB.
+ *
  * Version 1.05:
  *             - Fixed an issue with stacking effects.
  *
@@ -429,7 +434,7 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
         var note4 = /(?:ELEMENT|elemental type):[ ](\d+)/i;
         var note5 = /(?:SAME DAMAGE):[ ](true|false)/i;
         var note6 = /(?:STACK EFFECT|Stack):[ ](true|false)/i;
-        var note7 = /(?:STACK LIMIT:Stack Max):[ ](\d+)/i;
+        var note7 = /(?:STACK LIMIT|Stack Max):[ ](\d+)/i;
         for (var n = 1; n < group.length; n++) {
             var obj = group[n];
             var notedata = obj.note.split(/[\r\n]+/);
@@ -653,6 +658,9 @@ Anima.OvertimeEffects = Anima.OvertimeEffects || {};
         overtimeEffectsGameBattler_removeState.call(this, stateId);
         for (var i = 0; i < this._oteffects.length; i++) {
             if (this._oteffects[i].stateid === stateId) {
+                if (!$.Param.isTickBased) {
+                    this.applyOvertimeEffect(this._oteffects[i]);
+                }
                 this._oteffects.splice(i, 1);
             }
         }
