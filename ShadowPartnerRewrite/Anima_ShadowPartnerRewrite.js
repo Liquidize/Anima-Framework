@@ -2,7 +2,7 @@
  * Anima - Shadow Partner Rewrite
  * By Liquidize - www.mintkit.lol
  * Anima_ShadowPartnerRewrite.js
- * Version: 1.07
+ * Version: 1.08
  * Free for commercial/non-commercial use, Credit Liquidize or the
  * "Anima Framework".
  *=============================================================================*/
@@ -627,6 +627,9 @@
  * Change Log
  * ============================================================================
  *
+ * Version 1.08:
+ *			   - Fixed a bug where when not in battle, sprite animations attempt to occurr.
+ *
  * Version 1.07:
  *             - Fixed an issue where the shadow would render off screen.
  *
@@ -907,6 +910,7 @@ Anima.ShadowPartner = Anima.ShadowPartner || {};
     var shadowPartnerGameBattler_forceMotion = Game_Battler.prototype.forceMotion;
     Game_Battler.prototype.forceMotion = function (motionType) {
         shadowPartnerGameBattler_forceMotion.call(this, motionType);
+		if (!$gameParty.inBattle()) return;
         if (!this.battler().shadowPartnerSprites.length > 0) return;
         if (!this.spriteCanMove()) return;
         if (!$gameSystem.isSideView()) return;
@@ -2345,4 +2349,4 @@ Anima.ShadowPartner = Anima.ShadowPartner || {};
 })(Anima.ShadowPartner);
 
 ShadowPartner = Anima.ShadowPartner;
-Imported["Anima_ShadowPartnerRewrite"] = 1.07;
+Imported["Anima_ShadowPartnerRewrite"] = 1.08;
